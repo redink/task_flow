@@ -1,6 +1,6 @@
 # TaskFlow
 
-Why we need another task managment flow?
+Why we need another task management flow?
 
 Assuming that we have some scheduled tasks to execute, maybe include:
 
