@@ -355,6 +355,8 @@ defmodule TaskFlow do
 
   @callback handle_task_over(Utils.one_task(), map()) :: map()
 
+  @callback handle_task_all_over(Utils.one_task(), map()) :: map()
+
   @callback handle_task_failed(Utils.one_task(), map()) :: map()
 
   @callback handle_task_timeout(Utils.one_task(), map()) :: map()
