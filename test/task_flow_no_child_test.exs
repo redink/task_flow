@@ -1,17 +1,16 @@
 defmodule TaskFlow4.Example do
-  use TaskFlow,
-    task_flow: %{
-      default_entrance: :flow4,
-      flow4: %{
-        max_concurrency: 10,
-        exit_on_failed?: false,
-        task_module: Flow4,
-        task_retry_limit: 3,
-        task_timeout: 5_000,
-        next: :all_over
-      }
-    },
-    server_name: __MODULE__
+  use TaskFlow
+
+  task :default_entrance, :flow4
+
+  task :flow4, %{
+    max_concurrency: 10,
+    exit_on_failed?: false,
+    task_module: Flow4,
+    task_retry_limit: 3,
+    task_timeout: 5_000,
+    next: :all_over
+  }
 
   def handle_task_start({:flow4}, state) do
     state

@@ -1,17 +1,16 @@
 defmodule TaskFlow2.Example do
-  use TaskFlow,
-    task_flow: %{
-      default_entrance: :flow2,
-      flow2: %{
-        max_concurrency: 10,
-        exit_on_failed?: true,
-        task_module: Flow2,
-        task_retry_limit: 3,
-        task_timeout: 5_000,
-        next: :all_over
-      }
-    },
-    server_name: __MODULE__
+  use TaskFlow
+
+  task :default_entrance, :flow2
+
+  task :flow2, %{
+    max_concurrency: 10,
+    exit_on_failed?: true,
+    task_module: Flow2,
+    task_retry_limit: 3,
+    task_timeout: 5_000,
+    next: :all_over
+  }
 
   def handle_task_start({:flow2}, state) do
     state

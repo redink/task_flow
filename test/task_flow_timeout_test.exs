@@ -1,17 +1,16 @@
 defmodule TaskFlow5.Example do
-  use TaskFlow,
-    task_flow: %{
-      default_entrance: :flow5,
-      flow5: %{
-        max_concurrency: 10,
-        exit_on_failed?: false,
-        task_module: Flow5,
-        task_retry_limit: 3,
-        task_timeout: 1_000,
-        next: :all_over
-      }
-    },
-    server_name: __MODULE__
+  use TaskFlow, server_name: __MODULE__
+
+  task :default_entrance, :flow5
+
+  task :flow5, %{
+    max_concurrency: 10,
+    exit_on_failed?: false,
+    task_module: Flow5,
+    task_retry_limit: 3,
+    task_timeout: 1_000,
+    next: :all_over
+  }
 
   def handle_task_start({:flow5}, state) do
     case Map.get(state, :assist_for_retry_times) do

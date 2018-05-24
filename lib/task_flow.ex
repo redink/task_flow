@@ -19,15 +19,18 @@ defmodule TaskFlow do
   end
 
   defmacro __using__(options) do
-    quote bind_quoted: [options: options] do
-      @options options
+    quote do
+      import unquote(__MODULE__), only: [task: 2]
+      @before_compile unquote(__MODULE__)
+      @options unquote(options)
+      @task_flow_tmp []
       use GenServer
 
       alias TaskFlow.Utils
 
       def start_link(args \\ %{}) do
-        task_flow = Keyword.get(@options, :task_flow)
-        server_name = Keyword.get(@options, :server_name)
+        task_flow = get_all_task_flow()
+        server_name = Keyword.get(@options, :server_name, __MODULE__)
 
         case GenServer.start_link(__MODULE__, {task_flow, args}, name: server_name) do
           {:ok, pid} ->
@@ -68,7 +71,11 @@ defmodule TaskFlow do
         {:reply, {:task_running, start_time}, module_handle_start_flow(state)}
       end
 
-      def handle_call({:start_flow, options}, _from, %{start_time: nil, task_flow: task_flow} = state) do
+      def handle_call(
+            {:start_flow, options},
+            _from,
+            %{start_time: nil, task_flow: task_flow} = state
+          ) do
         start_time = Time.utc_now()
         new_state = module_handle_start_flow(state)
         entrance = {Map.get(options, :entrance, Map.get(task_flow, :default_entrance))}
@@ -357,6 +364,22 @@ defmodule TaskFlow do
         task_flow
         |> Map.get(task_flag)
         |> Map.get(:exit_on_failed?, true)
+      end
+    end
+  end
+
+  defmacro task(task_name, task_meta) do
+    quote do
+      @task_flow_tmp Keyword.put(@task_flow_tmp, unquote(task_name), unquote(task_meta))
+    end
+  end
+
+  defmacro __before_compile__(%Macro.Env{module: module}) do
+    task_flow_tmp = Module.get_attribute(module, :task_flow_tmp)
+
+    quote do
+      def get_all_task_flow() do
+        Map.new(unquote(Macro.escape(task_flow_tmp)))
       end
     end
   end

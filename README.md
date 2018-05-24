@@ -34,25 +34,25 @@ The main features include:
 A typical task flow should be like this:
 
 ```elixir
-    task_flow: %{
-      default_entrance: :flow1,
-      flow1: %{
-        max_concurrency: 10,
-        exit_on_failed?: true,
-        task_module: Flow1,
-        task_retry_limit: 3,
-        task_timeout: 5_000,
-        next: :flow2
-      },
-      flow2: %{
-        max_concurrency: 10,
-        exit_on_failed?: true,
-        task_module: Flow2,
-        task_retry_limit: 3,
-        task_timeout: 5_000,
-        next: :all_over
-      }
-    }
+  task :default_entrance, :flow1
+
+  task :flow1, %{
+    max_concurrency: 10,
+    exit_on_failed?: true,
+    task_module: Flow1,
+    task_retry_limit: 3,
+    task_timeout: 5_000,
+    next: :flow2
+  }
+
+  task :flow2, %{
+    max_concurrency: 10,
+    exit_on_failed?: true,
+    task_module: Flow2,
+    task_retry_limit: 3,
+    task_timeout: 5_000,
+    next: :all_over
+  }
 ```
 
 - `default_entrance` is entrance of the flow
@@ -69,19 +69,18 @@ The main subjec of `TaskFlow` is Macro, so need to:
 
 ```elixir
 defmodule TaskFlow1.Example do
-  use TaskFlow,
-    task_flow: %{
-      default_entrance: :flow1,
-      flow1: %{
-        max_concurrency: 10,
-        exit_on_failed?: true,
-        task_module: Flow1,
-        task_retry_limit: 3,
-        task_timeout: 5_000,
-        next: :all_over
-      }
-    },
-    server_name: __MODULE__
+  use TaskFlow, server_name: __MODULE__
+
+  task :default_entrance, :flow1
+
+  task :flow1, %{
+    max_concurrency: 10,
+    exit_on_failed?: true,
+    task_module: Flow1,
+    task_retry_limit: 3,
+    task_timeout: 5_000,
+    next: :all_over
+  }
 end
 ```
 
