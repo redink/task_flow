@@ -1,38 +1,14 @@
-defmodule Flow3 do
-  def flow3(state) do
-    "1,2,3\n4,5,6\n7,8,b"
-    |> String.split("\n")
-    |> Enum.with_index()
-    |> Enum.each(fn {v, k} -> TaskFlow.add_child_task(k, v, state) end)
-  end
-
-  def flow3([{task_id, string}], %{
-        flow3_use_ets: flow3_use_ets,
-        assist_for_retry_times: assist_for_retry_times
-      }) do
-    :ets.update_counter(assist_for_retry_times, {:flow3, task_id}, 1, {{:flow3, task_id}, 0})
-
-    res =
-      string
-      |> String.split(",")
-      |> Enum.map(fn x -> String.to_integer(x) end)
-      |> Enum.sum()
-
-    :ets.insert(flow3_use_ets, {task_id, res})
-  end
-end
-
 defmodule TaskFlow3.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow3,
+      default_entrance: :flow3,
       flow3: %{
         max_concurrency: 10,
         exit_on_failed?: false,
         task_module: Flow3,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__
@@ -49,14 +25,14 @@ end
 defmodule TaskFlow34.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow3,
+      default_entrance: :flow3,
       flow3: %{
         max_concurrency: 10,
         exit_on_failed?: false,
         task_module: Flow3,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :flow4
+        next: :flow4
       },
       flow4: %{
         max_concurrency: 10,
@@ -64,7 +40,7 @@ defmodule TaskFlow34.Example do
         task_module: Flow4,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__

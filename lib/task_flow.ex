@@ -39,15 +39,17 @@ defmodule TaskFlow do
         end
       end
 
-      def start_flow({:global, server_name}) do
+      def start_flow(server_name, options \\ %{})
+
+      def start_flow({:global, server_name}, options) do
         server_name
         |> :global.whereis_name()
-        |> GenServer.call(:start_flow)
+        |> GenServer.call({:start_flow, options})
       end
 
-      def start_flow(server_name) do
+      def start_flow(server_name, options) do
         server_name
-        |> GenServer.call(:start_flow)
+        |> GenServer.call({:start_flow, options})
       end
 
       def init({task_flow, args}) do
@@ -58,11 +60,23 @@ defmodule TaskFlow do
       def handle_call(:start_flow, _from, %{start_time: nil, task_flow: task_flow} = state) do
         start_time = Time.utc_now()
         new_state = module_handle_start_flow(state)
-        send(self(), {Map.get(task_flow, :flow_entrance)})
+        send(self(), {Map.get(task_flow, :default_entrance)})
         {:reply, :task_started, %{new_state | start_time: start_time, ets: create_resource()}}
       end
 
       def handle_call(:start_flow, _from, %{start_time: start_time} = state) do
+        {:reply, {:task_running, start_time}, module_handle_start_flow(state)}
+      end
+
+      def handle_call({:start_flow, options}, _from, %{start_time: nil, task_flow: task_flow} = state) do
+        start_time = Time.utc_now()
+        new_state = module_handle_start_flow(state)
+        entrance = {Map.get(options, :entrance, Map.get(task_flow, :default_entrance))}
+        send(self(), entrance)
+        {:reply, :task_started, %{new_state | start_time: start_time, ets: create_resource()}}
+      end
+
+      def handle_call({:start_flow, _options}, _from, %{start_time: start_time} = state) do
         {:reply, {:task_running, start_time}, module_handle_start_flow(state)}
       end
 
@@ -138,7 +152,7 @@ defmodule TaskFlow do
 
         new_state =
           if :ets.info(task_ets, :size) == 0 do
-            send(self(), {Map.get(Map.get(task_flow, task_flag), :next_stage)})
+            send(self(), {Map.get(Map.get(task_flow, task_flag), :next)})
             module_handle_task_all_over({task_flag}, new_state)
           else
             deliver_split_task(task_flag, task_ets, task_ets_tmp, max_concurrency)
@@ -182,7 +196,7 @@ defmodule TaskFlow do
         new_state =
           if :ets.info(task_ets, :size) == 0 do
             if :ets.info(task_ets_tmp, :size) == 0 do
-              send(self(), {Map.get(Map.get(task_flow, task_flag), :next_stage)})
+              send(self(), {Map.get(Map.get(task_flow, task_flag), :next)})
               module_handle_task_all_over({task_flag}, state)
             else
               new_state

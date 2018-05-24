@@ -35,14 +35,14 @@ A typical task flow should be like this:
 
 ```elixir
     task_flow: %{
-      flow_entrance: :flow1,
+      default_entrance: :flow1,
       flow1: %{
         max_concurrency: 10,
         exit_on_failed?: true,
         task_module: Flow1,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :flow2
+        next: :flow2
       },
       flow2: %{
         max_concurrency: 10,
@@ -50,18 +50,18 @@ A typical task flow should be like this:
         task_module: Flow2,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     }
 ```
 
-- `flow_entrance` is entrance of the flow
+- `default_entrance` is entrance of the flow
 - `max_concurrency` define how many concurrent processes to process the task
 - `exit_on_failed?` if the whole task failed when one small task exit
 - `task_module` define which module to execute this task
 - `task_retry_limit` define retry times limit for this task
 - `task_timeout` define timeout value for this task
-- `next_stage` define the next task
+- `next` define the next task
 
 ### use `TaskFlow`
 
@@ -71,14 +71,14 @@ The main subjec of `TaskFlow` is Macro, so need to:
 defmodule TaskFlow1.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow1,
+      default_entrance: :flow1,
       flow1: %{
         max_concurrency: 10,
         exit_on_failed?: true,
         task_module: Flow1,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__

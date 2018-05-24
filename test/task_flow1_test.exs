@@ -1,34 +1,14 @@
-defmodule Flow1 do
-  def flow1(state) do
-    "1,2,3\n4,5,6\n7,8,9"
-    |> String.split("\n")
-    |> Enum.with_index()
-    |> Enum.map(fn {v, k} -> {k, v} end)
-    |> TaskFlow.add_children_tasks(state)
-  end
-
-  def flow1([{task_id, string}], %{flow1_use_ets: flow1_use_ets}) do
-    res =
-      string
-      |> String.split(",")
-      |> Enum.map(fn x -> String.to_integer(x) end)
-      |> Enum.sum()
-
-    :ets.insert(flow1_use_ets, {task_id, res})
-  end
-end
-
 defmodule TaskFlow1.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow1,
+      default_entrance: :flow1,
       flow1: %{
         max_concurrency: 10,
         exit_on_failed?: true,
         task_module: Flow1,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__
@@ -44,14 +24,14 @@ end
 defmodule TaskFlow12.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow1,
+      default_entrance: :flow1,
       flow1: %{
         max_concurrency: 10,
         exit_on_failed?: true,
         task_module: Flow1,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :flow2
+        next: :flow2
       },
       flow2: %{
         max_concurrency: 10,
@@ -59,7 +39,7 @@ defmodule TaskFlow12.Example do
         task_module: Flow2,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__
@@ -98,22 +78,18 @@ defmodule TaskFlow1Test do
   end
 
   TaskFlow12.Example.start_link(%{return: self()})
-  TaskFlow12.Example.start_flow(TaskFlow12.Example)
+  TaskFlow12.Example.start_flow(TaskFlow12.Example, %{entrance: :flow2})
 
   receive do
     {:failed_over, {:can_not_retry, {:flow2, 2}, state}} ->
-      %{assist_for_retry_times: assist_for_retry_times, flow1_use_ets: flow1_use_ets} = state
+      %{assist_for_retry_times: assist_for_retry_times} = state
 
       assert [{{:flow2, 0}, 1}, {{:flow2, 1}, 1}, {{:flow2, 2}, 3}] ==
                assist_for_retry_times
                |> :ets.tab2list()
                |> Enum.sort()
 
-      assert [{0, 6}, {1, 15}, {2, 24}] ==
-               flow1_use_ets
-               |> :ets.tab2list()
-               |> Enum.sort()
-
+      assert nil == Map.get(state, :flow1_use_ets)
       assert true
   after
     5000 ->

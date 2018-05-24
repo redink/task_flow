@@ -1,31 +1,14 @@
-defmodule Flow5 do
-  def flow5(%{flow5_use_ets: flow5_use_ets, assist_for_retry_times: assist_for_retry_times}) do
-    :ets.update_counter(assist_for_retry_times, {:flow5}, 1, {{:flow5}, 0})
-
-    case :ets.lookup(assist_for_retry_times, {:flow5}) do
-      [{{:flow5}, retry_times}] when retry_times < 3 ->
-        :timer.sleep(10_000)
-
-      _ ->
-        "1,2,3\n4,5,6\n7,8,b"
-        |> String.split("\n")
-        |> Enum.with_index()
-        |> Enum.each(fn {v, k} -> :ets.insert(flow5_use_ets, {k, v}) end)
-    end
-  end
-end
-
 defmodule TaskFlow5.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow5,
+      default_entrance: :flow5,
       flow5: %{
         max_concurrency: 10,
         exit_on_failed?: false,
         task_module: Flow5,
         task_retry_limit: 3,
         task_timeout: 1_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__

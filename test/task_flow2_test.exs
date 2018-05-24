@@ -1,38 +1,14 @@
-defmodule Flow2 do
-  def flow2(state) do
-    "1,2,3\n4,5,6\n7,8,b"
-    |> String.split("\n")
-    |> Enum.with_index()
-    |> Enum.each(fn {v, k} -> TaskFlow.add_child_task(k, v, state) end)
-  end
-
-  def flow2([{task_id, string}], %{
-        flow2_use_ets: flow2_use_ets,
-        assist_for_retry_times: assist_for_retry_times
-      }) do
-    :ets.update_counter(assist_for_retry_times, {:flow2, task_id}, 1, {{:flow2, task_id}, 0})
-
-    res =
-      string
-      |> String.split(",")
-      |> Enum.map(fn x -> String.to_integer(x) end)
-      |> Enum.sum()
-
-    :ets.insert(flow2_use_ets, {task_id, res})
-  end
-end
-
 defmodule TaskFlow2.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow2,
+      default_entrance: :flow2,
       flow2: %{
         max_concurrency: 10,
         exit_on_failed?: true,
         task_module: Flow2,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__

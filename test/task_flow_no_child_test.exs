@@ -1,23 +1,14 @@
-defmodule Flow4 do
-  def flow4(%{flow4_use_ets: flow4_use_ets} = _state) do
-    "1,2,3\n4,5,6\n7,8,b"
-    |> String.split("\n")
-    |> Enum.with_index()
-    |> Enum.each(fn {v, k} -> :ets.insert(flow4_use_ets, {k, v}) end)
-  end
-end
-
 defmodule TaskFlow4.Example do
   use TaskFlow,
     task_flow: %{
-      flow_entrance: :flow4,
+      default_entrance: :flow4,
       flow4: %{
         max_concurrency: 10,
         exit_on_failed?: false,
         task_module: Flow4,
         task_retry_limit: 3,
         task_timeout: 5_000,
-        next_stage: :all_over
+        next: :all_over
       }
     },
     server_name: __MODULE__
