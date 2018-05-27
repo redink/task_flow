@@ -6,7 +6,8 @@ defmodule TaskFlow2.Example do
   task :flow2,
     max_concurrency: 10,
     exit_on_failed?: true,
-    task_module: Flow2,
+    task_func: &Flow2.flow2/1,
+    child_task_func: &Flow2.flow2/2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over

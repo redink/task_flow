@@ -5,7 +5,8 @@ defmodule TaskFlow3.Example do
   task :flow3,
     max_concurrency: 10,
     exit_on_failed?: false,
-    task_module: Flow3,
+    task_func: &Flow3.flow3/1,
+    child_task_func: &Flow3.flow3/2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
@@ -27,7 +28,8 @@ defmodule TaskFlow34.Example do
   task :flow3,
     max_concurrency: 10,
     exit_on_failed?: false,
-    task_module: Flow3,
+    task_func: &Flow3.flow3/1,
+    child_task_func: &Flow3.flow3/2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :flow4
@@ -35,7 +37,7 @@ defmodule TaskFlow34.Example do
   task :flow4,
     max_concurrency: 10,
     exit_on_failed?: false,
-    task_module: Flow4,
+    task_func: &Flow4.flow4/1,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over

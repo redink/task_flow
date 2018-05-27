@@ -6,7 +6,7 @@ defmodule TaskFlow5.Example do
   task :flow5,
     max_concurrency: 10,
     exit_on_failed?: false,
-    task_module: Flow5,
+    task_func: &Flow5.flow5/1,
     task_retry_limit: 3,
     task_timeout: 1_000,
     next: :all_over

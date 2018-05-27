@@ -39,7 +39,8 @@ A typical task flow should be like this:
   task :flow1,
     max_concurrency: 10,
     exit_on_failed?: true,
-    task_module: Flow1,
+    task_func: &Flow1.flow1/1,
+    child_task_func: &Flow1.flow1/2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :flow2
@@ -47,7 +48,8 @@ A typical task flow should be like this:
   task :flow2,
     max_concurrency: 10,
     exit_on_failed?: true,
-    task_module: Flow2,
+    task_func: &Flow2.flow2/1,
+    child_task_func: &Flow2.flow2/2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
@@ -56,10 +58,15 @@ A typical task flow should be like this:
 - `default_entrance` is entrance of the flow
 - `max_concurrency` define how many concurrent processes to process the task
 - `exit_on_failed?` if the whole task failed when one small task exit
-- `task_module` define which module to execute this task
+- `task_func` define which function to execute parent task
+- `child_task_func` define which function to execute children tasks
 - `task_retry_limit` define retry times limit for this task
 - `task_timeout` define timeout value for this task
 - `next` define the next task
+
+`task_func` and `child_task_func` only support [external function](http://erlang.org/doc/man/erlang.html#fun_info-1), local function maybe lead some strange issues, I saw before [`badfun`](https://stackoverflow.com/questions/39254784/can-not-spawn-function-on-remote-node-with-spawnnode-fun-in-erlang).
+
+`task_func` is an one parameter function, and `child_task_func` is a two parameters function. `task_func` is required and `child_task_func` is optional if there are no children tasks.
 
 ### use `TaskFlow`
 
@@ -74,7 +81,7 @@ defmodule TaskFlow1.Example do
   task :flow1,
     max_concurrency: 10,
     exit_on_failed?: true,
-    task_module: Flow1,
+    task_func: &Flow1.flow1/1,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over

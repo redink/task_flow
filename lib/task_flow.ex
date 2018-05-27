@@ -130,9 +130,15 @@ defmodule TaskFlow do
       def handle_info({task_flag}, %{ets: ets, task_flow: task_flow} = state) do
         %{pid_ets: pid_ets, timer_ets: timer_ets} = state.ets
         new_state = module_handle_task_start({task_flag}, state)
-        task_module = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_module)
         task_timeout = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout)
-        pid = Utils.spawn_task_proc(task_module, task_flag, [new_state])
+
+        {task_module, task_func, 1} =
+          task_flow
+          |> Keyword.fetch!(task_flag)
+          |> Keyword.get(:task_func)
+          |> :erlang.fun_info_mfa()
+
+        pid = Utils.spawn_task_proc(task_module, task_func, [new_state])
         Utils.register_task_pid(pid, {task_flag}, pid_ets)
         Utils.start_timer({task_flag}, timer_ets, pid, task_timeout)
         {:noreply, new_state}
@@ -175,11 +181,17 @@ defmodule TaskFlow do
 
       def handle_info({task_flag, task_id}, %{ets: ets, task_flow: task_flow} = state) do
         %{pid_ets: pid_ets, timer_ets: timer_ets, task_ets_tmp: task_ets_tmp} = ets
-        task_module = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_module)
         task_timeout = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout)
         new_state = module_handle_task_start({task_flag, task_id}, state)
+
+        {task_module, task_func, 2} =
+          task_flow
+          |> Keyword.fetch!(task_flag)
+          |> Keyword.get(:child_task_func)
+          |> :erlang.fun_info_mfa()
+
         task = :ets.lookup(task_ets_tmp, task_id)
-        pid = Utils.spawn_task_proc(task_module, task_flag, [task, new_state])
+        pid = Utils.spawn_task_proc(task_module, task_func, [task, new_state])
         Utils.register_task_pid(pid, {task_flag, task_id}, pid_ets)
         Utils.start_timer({task_flag, task_id}, timer_ets, pid, task_timeout)
         {:noreply, new_state}
