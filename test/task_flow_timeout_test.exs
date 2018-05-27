@@ -3,14 +3,13 @@ defmodule TaskFlow5.Example do
 
   task :default_entrance, :flow5
 
-  task :flow5, %{
+  task :flow5,
     max_concurrency: 10,
     exit_on_failed?: false,
     task_module: Flow5,
     task_retry_limit: 3,
     task_timeout: 1_000,
     next: :all_over
-  }
 
   def handle_task_start({:flow5}, state) do
     case Map.get(state, :assist_for_retry_times) do
@@ -31,7 +30,7 @@ end
 defmodule TaskFlow5.Test do
   use ExUnit.Case
 
-  TaskFlow5.Example.start_link(%{return: self()})
+  TaskFlow5.Example.start_link(return: self())
   assert :task_started == TaskFlow5.Example.start_flow(TaskFlow5.Example)
   assert {:task_running, _} = TaskFlow5.Example.start_flow(TaskFlow5.Example)
 

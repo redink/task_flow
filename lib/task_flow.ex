@@ -28,7 +28,8 @@ defmodule TaskFlow do
 
       alias TaskFlow.Utils
 
-      def start_link(args \\ %{}) do
+      def start_link(args \\ []) do
+        args = Map.new(args)
         task_flow = get_all_task_flow()
         server_name = Keyword.get(@options, :server_name, __MODULE__)
 
@@ -42,7 +43,7 @@ defmodule TaskFlow do
         end
       end
 
-      def start_flow(server_name, options \\ %{})
+      def start_flow(server_name, options \\ [])
 
       def start_flow({:global, server_name}, options) do
         server_name
@@ -63,7 +64,7 @@ defmodule TaskFlow do
       def handle_call(:start_flow, _from, %{start_time: nil, task_flow: task_flow} = state) do
         start_time = Time.utc_now()
         new_state = module_handle_start_flow(state)
-        send(self(), {Map.get(task_flow, :default_entrance)})
+        send(self(), {Keyword.fetch!(task_flow, :default_entrance)})
         {:reply, :task_started, %{new_state | start_time: start_time, ets: create_resource()}}
       end
 
@@ -78,7 +79,7 @@ defmodule TaskFlow do
           ) do
         start_time = Time.utc_now()
         new_state = module_handle_start_flow(state)
-        entrance = {Map.get(options, :entrance, Map.get(task_flow, :default_entrance))}
+        entrance = {Keyword.get(options, :entrance, Keyword.fetch!(task_flow, :default_entrance))}
         send(self(), entrance)
         {:reply, :task_started, %{new_state | start_time: start_time, ets: create_resource()}}
       end
@@ -116,7 +117,10 @@ defmodule TaskFlow do
 
       def handle_info({:timeout, _, {:task_timeout, one_task, task_pid}}, state) do
         %{ets: %{retry_ets: retry_ets, pid_ets: pid_ets}, task_flow: task_flow} = state
-        retry_limit = Map.get(Map.get(task_flow, elem(one_task, 0)), :task_retry_limit, 3)
+
+        retry_limit =
+          Keyword.get(Keyword.fetch!(task_flow, elem(one_task, 0)), :task_retry_limit, 3)
+
         Utils.unregister_task_pid(task_pid, pid_ets)
         Utils.kill_task_pid(task_pid)
         Utils.maybe_retry_task(retry_ets, one_task, retry_limit)
@@ -126,8 +130,8 @@ defmodule TaskFlow do
       def handle_info({task_flag}, %{ets: ets, task_flow: task_flow} = state) do
         %{pid_ets: pid_ets, timer_ets: timer_ets} = state.ets
         new_state = module_handle_task_start({task_flag}, state)
-        task_module = Map.get(Map.get(task_flow, task_flag), :task_module)
-        task_timeout = Map.get(Map.get(task_flow, task_flag), :task_timeout)
+        task_module = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_module)
+        task_timeout = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout)
         pid = Utils.spawn_task_proc(task_module, task_flag, [new_state])
         Utils.register_task_pid(pid, {task_flag}, pid_ets)
         Utils.start_timer({task_flag}, timer_ets, pid, task_timeout)
@@ -152,14 +156,14 @@ defmodule TaskFlow do
 
         max_concurrency =
           task_flow
-          |> Map.get(task_flag)
-          |> Map.get(:max_concurrency, System.schedulers_online())
+          |> Keyword.fetch!(task_flag)
+          |> Keyword.get(:max_concurrency, System.schedulers_online())
 
         new_state = module_handle_task_over({task_flag}, state)
 
         new_state =
           if :ets.info(task_ets, :size) == 0 do
-            send(self(), {Map.get(Map.get(task_flow, task_flag), :next)})
+            send(self(), {Keyword.fetch!(Keyword.fetch!(task_flow, task_flag), :next)})
             module_handle_task_all_over({task_flag}, new_state)
           else
             deliver_split_task(task_flag, task_ets, task_ets_tmp, max_concurrency)
@@ -171,8 +175,8 @@ defmodule TaskFlow do
 
       def handle_info({task_flag, task_id}, %{ets: ets, task_flow: task_flow} = state) do
         %{pid_ets: pid_ets, timer_ets: timer_ets, task_ets_tmp: task_ets_tmp} = ets
-        task_module = Map.get(Map.get(task_flow, task_flag), :task_module)
-        task_timeout = Map.get(Map.get(task_flow, task_flag), :task_timeout)
+        task_module = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_module)
+        task_timeout = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout)
         new_state = module_handle_task_start({task_flag, task_id}, state)
         task = :ets.lookup(task_ets_tmp, task_id)
         pid = Utils.spawn_task_proc(task_module, task_flag, [task, new_state])
@@ -203,7 +207,7 @@ defmodule TaskFlow do
         new_state =
           if :ets.info(task_ets, :size) == 0 do
             if :ets.info(task_ets_tmp, :size) == 0 do
-              send(self(), {Map.get(Map.get(task_flow, task_flag), :next)})
+              send(self(), {Keyword.fetch!(Keyword.fetch!(task_flow, task_flag), :next)})
               module_handle_task_all_over({task_flag}, state)
             else
               new_state
@@ -240,7 +244,11 @@ defmodule TaskFlow do
         new_state =
           case :ets.lookup(pid_ets, pid) do
             [{^pid, one_task}] ->
-              retry_limit = Map.get(Map.get(task_flow, elem(one_task, 0)), :task_retry_limit, 3)
+              retry_limit =
+                task_flow
+                |> Keyword.fetch!(elem(one_task, 0))
+                |> Keyword.get(:task_retry_limit, 3)
+
               Utils.cancel_timer(one_task, timer_ets)
               Utils.unregister_task_pid(pid, pid_ets)
 
@@ -362,8 +370,8 @@ defmodule TaskFlow do
 
       defp exit_on_failed?({task_flag, _task_id}, task_flow) do
         task_flow
-        |> Map.get(task_flag)
-        |> Map.get(:exit_on_failed?, true)
+        |> Keyword.fetch!(task_flag)
+        |> Keyword.get(:exit_on_failed?, true)
       end
     end
   end
@@ -379,7 +387,7 @@ defmodule TaskFlow do
 
     quote do
       def get_all_task_flow() do
-        Map.new(unquote(Macro.escape(task_flow_tmp)))
+        unquote(Macro.escape(task_flow_tmp))
       end
     end
   end

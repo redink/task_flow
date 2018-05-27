@@ -3,14 +3,13 @@ defmodule TaskFlow1.Example do
 
   task :default_entrance, :flow1
 
-  task :flow1, %{
+  task :flow1,
     max_concurrency: 10,
     exit_on_failed?: true,
     task_module: Flow1,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
-  }
 
   def handle_task_start({:flow1}, state) do
     state
@@ -24,23 +23,21 @@ defmodule TaskFlow12.Example do
   use TaskFlow, server_name: {:global, __MODULE__}
   task :default_entrance, :flow1
 
-  task :flow1, %{
+  task :flow1,
     max_concurrency: 10,
     exit_on_failed?: true,
     task_module: Flow1,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :flow2
-  }
 
-  task :flow2, %{
+  task :flow2,
     max_concurrency: 10,
     exit_on_failed?: true,
     task_module: Flow2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
-  }
 
   def handle_task_start({:flow1}, state) do
     state
@@ -59,7 +56,7 @@ end
 defmodule TaskFlow1Test do
   use ExUnit.Case
 
-  TaskFlow1.Example.start_link(%{return: self()})
+  TaskFlow1.Example.start_link(return: self())
   TaskFlow1.Example.start_flow(TaskFlow1.Example)
 
   receive do
@@ -75,8 +72,8 @@ defmodule TaskFlow1Test do
       exit(1)
   end
 
-  TaskFlow12.Example.start_link(%{return: self()})
-  TaskFlow12.Example.start_flow({:global, TaskFlow12.Example}, %{entrance: :flow2})
+  TaskFlow12.Example.start_link(return: self())
+  TaskFlow12.Example.start_flow({:global, TaskFlow12.Example}, entrance: :flow2)
 
   receive do
     {:failed_over, {:can_not_retry, {:flow2, 2}, state}} ->

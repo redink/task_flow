@@ -36,23 +36,21 @@ A typical task flow should be like this:
 ```elixir
   task :default_entrance, :flow1
 
-  task :flow1, %{
+  task :flow1,
     max_concurrency: 10,
     exit_on_failed?: true,
     task_module: Flow1,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :flow2
-  }
 
-  task :flow2, %{
+  task :flow2,
     max_concurrency: 10,
     exit_on_failed?: true,
     task_module: Flow2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
-  }
 ```
 
 - `default_entrance` is entrance of the flow
@@ -73,14 +71,13 @@ defmodule TaskFlow1.Example do
 
   task :default_entrance, :flow1
 
-  task :flow1, %{
+  task :flow1,
     max_concurrency: 10,
     exit_on_failed?: true,
     task_module: Flow1,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
-  }
 end
 ```
 
@@ -207,7 +204,7 @@ In this case, when process the main task, it added children tasks `{k, v}` is th
 As the worker process, user can put the GenServer under the supervisor same as other GenServer. But if user want start the GenServer out of the superviosr, another parameter will be helpful in some cases.
 
 ```elixir
-TaskFlow1.Example.start_link(%{return: self()})
+TaskFlow1.Example.start_link([return: self()])
 ```
 
 After the whole flow executed over, it will send the result to the `return` process.

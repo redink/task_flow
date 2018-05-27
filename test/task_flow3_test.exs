@@ -2,14 +2,13 @@ defmodule TaskFlow3.Example do
   use TaskFlow
   task :default_entrance, :flow3
 
-  task :flow3, %{
+  task :flow3,
     max_concurrency: 10,
     exit_on_failed?: false,
     task_module: Flow3,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
-  }
 
   def handle_task_start({:flow3}, state) do
     state
@@ -25,23 +24,21 @@ defmodule TaskFlow34.Example do
 
   task :default_entrance, :flow3
 
-  task :flow3, %{
+  task :flow3,
     max_concurrency: 10,
     exit_on_failed?: false,
     task_module: Flow3,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :flow4
-  }
 
-  task :flow4, %{
+  task :flow4,
     max_concurrency: 10,
     exit_on_failed?: false,
     task_module: Flow4,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
-  }
 
   def handle_task_start({:flow3}, state) do
     state
@@ -60,7 +57,7 @@ end
 defmodule TaskFlow3.Test do
   use ExUnit.Case
 
-  TaskFlow3.Example.start_link(%{return: self()})
+  TaskFlow3.Example.start_link(return: self())
   TaskFlow3.Example.start_flow(TaskFlow3.Example)
 
   receive do
@@ -81,7 +78,7 @@ defmodule TaskFlow3.Test do
       exit(1)
   end
 
-  TaskFlow34.Example.start_link(%{return: self()})
+  TaskFlow34.Example.start_link(return: self())
   TaskFlow34.Example.start_flow(TaskFlow34.Example)
 
   receive do

@@ -91,7 +91,7 @@ defmodule TaskFlow.Utils do
   Start timer for one task.
   """
   @spec start_timer(one_task(), :ets.tid(), pid(), integer()) :: true
-  def start_timer(one_task, timer_ets, task_pid, task_timeout \\ 150_000) do
+  def start_timer(one_task, timer_ets, task_pid, task_timeout \\ 5_000) do
     timer = :erlang.start_timer(task_timeout, self(), {:task_timeout, one_task, task_pid})
     :ets.insert(timer_ets, {one_task, timer})
   end

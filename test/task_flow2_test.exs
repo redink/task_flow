@@ -3,14 +3,13 @@ defmodule TaskFlow2.Example do
 
   task :default_entrance, :flow2
 
-  task :flow2, %{
+  task :flow2,
     max_concurrency: 10,
     exit_on_failed?: true,
     task_module: Flow2,
     task_retry_limit: 3,
     task_timeout: 5_000,
     next: :all_over
-  }
 
   def handle_task_start({:flow2}, state) do
     state
@@ -24,7 +23,7 @@ end
 defmodule TaskFlow22Test do
   use ExUnit.Case
 
-  TaskFlow2.Example.start_link(%{return: self()})
+  TaskFlow2.Example.start_link(return: self())
   TaskFlow2.Example.start_flow(TaskFlow2.Example)
 
   receive do
