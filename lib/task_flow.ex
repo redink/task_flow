@@ -12,18 +12,14 @@ defmodule TaskFlow do
     :ok
   end
 
-  @spec add_children_tasks([{task_id(), task()}], map()) :: :ok
-  def add_children_tasks(children_tasks, %{ets: %{task_ets: task_ets}}) do
-    :ets.insert(task_ets, children_tasks)
-    :ok
-  end
-
   defmacro __using__(options) do
     quote do
       import unquote(__MODULE__), only: [task: 2]
       @before_compile unquote(__MODULE__)
       @options unquote(options)
       @task_flow_tmp []
+      @default_task_timeout 5_000
+
       use GenServer
 
       alias TaskFlow.Utils
@@ -63,13 +59,13 @@ defmodule TaskFlow do
 
       def handle_call(:start_flow, _from, %{start_time: nil, task_flow: task_flow} = state) do
         start_time = Time.utc_now()
-        new_state = module_handle_start_flow(state)
+        new_state = module_handle_start(state)
         send(self(), {Keyword.fetch!(task_flow, :default_entrance)})
         {:reply, :task_started, %{new_state | start_time: start_time, ets: create_resource()}}
       end
 
       def handle_call(:start_flow, _from, %{start_time: start_time} = state) do
-        {:reply, {:task_running, start_time}, module_handle_start_flow(state)}
+        {:reply, {:task_running, start_time}, module_handle_start(state)}
       end
 
       def handle_call(
@@ -78,14 +74,14 @@ defmodule TaskFlow do
             %{start_time: nil, task_flow: task_flow} = state
           ) do
         start_time = Time.utc_now()
-        new_state = module_handle_start_flow(state)
+        new_state = module_handle_start(state)
         entrance = {Keyword.get(options, :entrance, Keyword.fetch!(task_flow, :default_entrance))}
         send(self(), entrance)
         {:reply, :task_started, %{new_state | start_time: start_time, ets: create_resource()}}
       end
 
       def handle_call({:start_flow, _options}, _from, %{start_time: start_time} = state) do
-        {:reply, {:task_running, start_time}, module_handle_start_flow(state)}
+        {:reply, {:task_running, start_time}, module_handle_start(state)}
       end
 
       def handle_call(any, _from, state) do
@@ -109,8 +105,8 @@ defmodule TaskFlow do
         {:noreply, Utils.clear_resource(new_state)}
       end
 
-      def handle_info({:all_over}, state) do
-        new_state = module_handle_all_over(state)
+      def handle_info({nil}, state) do
+        new_state = module_handle_over(state)
         maybe_need_return(Map.get(state, :return), {:all_over, state})
         {:noreply, Utils.clear_resource(new_state)}
       end
@@ -129,13 +125,15 @@ defmodule TaskFlow do
 
       def handle_info({task_flag}, %{ets: ets, task_flow: task_flow} = state) do
         %{pid_ets: pid_ets, timer_ets: timer_ets} = state.ets
-        new_state = module_handle_task_start({task_flag}, state)
-        task_timeout = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout)
+        new_state = module_handle_flow_start(task_flag, state)
+
+        task_timeout =
+          Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout, @default_task_timeout)
 
         {task_module, task_func, 1} =
           task_flow
           |> Keyword.fetch!(task_flag)
-          |> Keyword.get(:task_func)
+          |> Keyword.fetch!(:task_func)
           |> :erlang.fun_info_mfa()
 
         pid = Utils.spawn_task_proc(task_module, task_func, [new_state])
@@ -165,12 +163,12 @@ defmodule TaskFlow do
           |> Keyword.fetch!(task_flag)
           |> Keyword.get(:max_concurrency, System.schedulers_online())
 
-        new_state = module_handle_task_over({task_flag}, state)
+        new_state = module_handle_parent_task_over(task_flag, state)
 
         new_state =
           if :ets.info(task_ets, :size) == 0 do
-            send(self(), {Keyword.fetch!(Keyword.fetch!(task_flow, task_flag), :next)})
-            module_handle_task_all_over({task_flag}, new_state)
+            send(self(), {Keyword.get(Keyword.fetch!(task_flow, task_flag), :next)})
+            module_handle_flow_over(task_flag, new_state)
           else
             deliver_split_task(task_flag, task_ets, task_ets_tmp, max_concurrency)
             new_state
@@ -181,13 +179,15 @@ defmodule TaskFlow do
 
       def handle_info({task_flag, task_id}, %{ets: ets, task_flow: task_flow} = state) do
         %{pid_ets: pid_ets, timer_ets: timer_ets, task_ets_tmp: task_ets_tmp} = ets
-        task_timeout = Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout)
-        new_state = module_handle_task_start({task_flag, task_id}, state)
+        new_state = module_handle_child_task_start(task_flag, task_id, state)
+
+        task_timeout =
+          Keyword.get(Keyword.fetch!(task_flow, task_flag), :task_timeout, @default_task_timeout)
 
         {task_module, task_func, 2} =
           task_flow
           |> Keyword.fetch!(task_flag)
-          |> Keyword.get(:child_task_func)
+          |> Keyword.fetch!(:child_task_func)
           |> :erlang.fun_info_mfa()
 
         task = :ets.lookup(task_ets_tmp, task_id)
@@ -213,14 +213,13 @@ defmodule TaskFlow do
         Utils.unregister_task_pid(task_pid, pid_ets)
         Utils.cancel_timer({task_flag, task_id}, timer_ets)
         Utils.clear_retry(retry_ets, {task_flag, task_id})
-
-        new_state = module_handle_task_over({task_flag, task_id}, state)
+        new_state = module_handle_child_task_over(task_flag, task_id, state)
 
         new_state =
           if :ets.info(task_ets, :size) == 0 do
             if :ets.info(task_ets_tmp, :size) == 0 do
-              send(self(), {Keyword.fetch!(Keyword.fetch!(task_flow, task_flag), :next)})
-              module_handle_task_all_over({task_flag}, state)
+              send(self(), {Keyword.get(Keyword.fetch!(task_flow, task_flag), :next)})
+              module_handle_flow_over(task_flag, state)
             else
               new_state
             end
@@ -284,41 +283,57 @@ defmodule TaskFlow do
         {:noreply, state}
       end
 
-      defp module_handle_start_flow(state) do
-        if function_exported?(__MODULE__, :handle_start_flow, 1) do
-          __MODULE__.handle_start_flow(state)
+      defp module_handle_start(state) do
+        if function_exported?(__MODULE__, :handle_start, 1) do
+          apply(__MODULE__, :handle_start, [state])
         else
           state
         end
       end
 
-      defp module_handle_all_over(state) do
-        if function_exported?(__MODULE__, :handle_all_over, 1) do
-          __MODULE__.handle_all_over(state)
+      defp module_handle_over(state) do
+        if function_exported?(__MODULE__, :handle_over, 1) do
+          apply(__MODULE__, :handle_over, [state])
         else
           state
         end
       end
 
-      defp module_handle_task_start(one_task, state) do
-        if function_exported?(__MODULE__, :handle_task_start, 2) do
-          __MODULE__.handle_task_start(one_task, state)
+      defp module_handle_flow_start(task_flag, state) do
+        if function_exported?(__MODULE__, :handle_flow_start, 2) do
+          apply(__MODULE__, :handle_flow_start, [task_flag, state])
         else
           state
         end
       end
 
-      defp module_handle_task_over(one_task, state) do
-        if function_exported?(__MODULE__, :handle_task_over, 2) do
-          __MODULE__.handle_task_over(one_task, state)
+      defp module_handle_flow_over(task_flag, state) do
+        if function_exported?(__MODULE__, :handle_flow_over, 2) do
+          apply(__MODULE__, :handle_flow_over, [task_flag, state])
         else
           state
         end
       end
 
-      defp module_handle_task_all_over(one_task, state) do
-        if function_exported?(__MODULE__, :handle_task_all_over, 2) do
-          __MODULE__.handle_task_all_over(one_task, state)
+      defp module_handle_parent_task_over(task_flag, state) do
+        if function_exported?(__MODULE__, :handle_parent_task_over, 2) do
+          apply(__MODULE__, :handle_parent_task_over, [task_flag, state])
+        else
+          state
+        end
+      end
+
+      defp module_handle_child_task_start(task_flag, task_id, state) do
+        if function_exported?(__MODULE__, :handle_child_task_start, 3) do
+          apply(__MODULE__, :handle_child_task_start, [task_flag, task_id, state])
+        else
+          state
+        end
+      end
+
+      defp module_handle_child_task_over(task_flag, task_id, state) do
+        if function_exported?(__MODULE__, :handle_child_task_over, 3) do
+          apply(__MODULE__, :handle_child_task_over, [task_flag, task_id, state])
         else
           state
         end
@@ -326,7 +341,7 @@ defmodule TaskFlow do
 
       defp module_handle_task_timeout(one_task, state) do
         if function_exported?(__MODULE__, :handle_task_timeout, 2) do
-          __MODULE__.handle_task_timeout(one_task, state)
+          apply(__MODULE__, :handle_task_timeout, [one_task, state])
         else
           state
         end
@@ -334,7 +349,7 @@ defmodule TaskFlow do
 
       defp module_handle_task_exit(one_task, state) do
         if function_exported?(__MODULE__, :handle_task_exit, 2) do
-          __MODULE__.handle_task_exit(one_task, state)
+          apply(__MODULE__, :handle_task_exit, [one_task, state])
         else
           state
         end
@@ -342,7 +357,7 @@ defmodule TaskFlow do
 
       defp module_handle_task_failed(one_task, state) do
         if function_exported?(__MODULE__, :handle_task_failed, 2) do
-          __MODULE__.handle_task_failed(one_task, state)
+          apply(__MODULE__, :handle_task_failed, [one_task, state])
         else
           state
         end
@@ -404,15 +419,19 @@ defmodule TaskFlow do
     end
   end
 
-  @callback handle_start_flow(map()) :: map()
+  @callback handle_start(map()) :: map()
 
-  @callback handle_all_over(map()) :: map()
+  @callback handle_over(map()) :: map()
 
-  @callback handle_task_start(Utils.one_task(), map()) :: map()
+  @callback handle_flow_start(Utils.task_flag(), map()) :: map()
 
-  @callback handle_task_over(Utils.one_task(), map()) :: map()
+  @callback handle_flow_over(Utils.task_flag(), map()) :: map()
 
-  @callback handle_task_all_over(Utils.one_task(), map()) :: map()
+  @callback handle_parent_task_over(Utils.task_flag(), map()) :: map()
+
+  @callback handle_child_task_start(Utils.task_flag(), term(), map()) :: map()
+
+  @callback handle_child_task_over(Utils.task_flag(), term(), map()) :: map()
 
   @callback handle_task_failed(Utils.one_task(), map()) :: map()
 
